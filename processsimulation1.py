@@ -1,6 +1,7 @@
 import numpy as np 
 import matplotlib.pyplot as plt 
 import scipy.stats as stats
+import scipy.special as sp
 
 # Euler's method
 # d\sigma^2(t) = -\lambda{\sigma^2(t)-\xi}dt+\omega\sigma(t)db(\lambda t)  where b is a brownian motion process
@@ -53,8 +54,6 @@ class SVProcess:
                     if jump_positions[m]==k:
                         jump2[k]=random_numbers[m]
         return jump2
-            
-            
         
     def simulate(self, seed=None):
        
@@ -97,6 +96,23 @@ class SVProcess:
         for i in range(self.M*self.iteration, len(QV_list)):
             cumulative_QV[i] = np.sum(QV_list[i-self.M*self.iteration+1:i+1])
         return QV_list, cumulative_QV
+    
+    def Expectation(self,degree):
+        expectation = 2**( degree / 2) * (sp.gamma((degree + 1) / 2) / (np.sqrt(np.pi)))        
+        return expectation
+    
+    def Bipower(self,logstocklist,degree_a,degree_b):
+        Exp_a = self.Expectation(degree_a)
+        Exp_b = self.Expectation(degree_b)
+        power_list = np.zeros(int(len(logstocklist)/self.iteration)-1) 
+        for k in range(len(power_list)):
+            if k==0:
+                power_list[k] = 0
+            else:
+                power_list[k] = (np.abs((logstocklist[k*self.iteration]-logstocklist[(k-1)*self.iteration]))**degree_a)*(np.abs((logstocklist[(k+1)*self.iteration]-logstocklist[k*self.iteration]))**degree_b)
+        # sum of cumulative numbers
+        cumulative_power = np.array([self.M**(1-(degree_a+degree_b)/2)/(Exp_a*Exp_b)*np.sum(power_list[i:(i+self.M-1)]) for i in range(0, len(power_list), self.M)])
+        return power_list, cumulative_power  
 
             
     def plotstock(self, seed=None):
@@ -112,7 +128,7 @@ class SVProcess:
         plt.title('CIR Square Root Process Simulation')
         plt.show()
         
-    def QV_and_RVplot(self,RV,QV,cumulative_RV, cumulative_QV):
+    def QV_and_RVplot(self,RV,QV,Power,cumulative_RV, cumulative_QV,cumulative_power):
         time_gridRV = np.linspace(0, self.T, int(self.N/self.iteration))
         time_gridQV = np.linspace(0, self.T, self.N)
         print(self.dt)
@@ -123,6 +139,7 @@ class SVProcess:
         print(len(cumulative_RV))
         print(len(indices))
         plt.scatter(indices, cumulative_RV, color='blue', marker='x', label=f'Cumulative RV (every {self.M} steps)')
+        plt.scatter(indices, cumulative_power, color='pink', marker='o', label=f'Cumulative Power (every {self.M} steps)')
         plt.legend()
         plt.title("RV and QV ")
         plt.xlabel("x")
@@ -132,15 +149,18 @@ class SVProcess:
 
 # Test
 if __name__ == "__main__":
-    cir = SVProcess(Lambda=3,xi=0.2**2,omega=0.6,sigma0=0.25**2,M=252,T=50,mu=0.02,s0=1,jump_variance=0.64) # variance default 0
+    cir = SVProcess(Lambda=3,xi=0.2**2,omega=0.6,sigma0=0.25**2,M=72,T=50,mu=0.02,s0=1,jump_variance=0.64) # variance default 0
     s2 = cir.simulate(seed=10)[2]
     stock = np.log(s2)
     cir.plotstock(seed=10)
     sigma = cir.simulate(seed=10)[1]
     RV_list = cir.RV_calculate(stock)[0]
     QV_list = cir.QV_calculate(sigma)[0]
+    power_list = cir.Bipower(stock,1,1)[0]
     RV_cum = cir.RV_calculate(stock)[1]
     QV_cum = cir.QV_calculate(sigma)[1]
-    cir.QV_and_RVplot(RV_list,QV_list,RV_cum,QV_cum)
+    power_cum = cir.Bipower(stock,1,1)[0]
+    power_cum = cir.Bipower(stock,1,1)[1]
+    cir.QV_and_RVplot(RV_list,QV_list,power_list,RV_cum,QV_cum,power_cum)
 
     
